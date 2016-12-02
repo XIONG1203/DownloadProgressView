@@ -49,14 +49,21 @@ public class DownloadProgressView extends View {
     private Path path = new Path();
     private Paint roundPaint;
 
-    private int space = 30;
+    private int space = 20;
     private int move = 0;
     private int currentProgress = 0;
     private int maxProgress = 100;
 
     private int centerY;
 
+    private int bitmapWidth;
+    private int bitmapHeight;
+
     private SingleTapThread singleTapThread;
+
+    private float waveHeight;
+
+    private boolean isRise = false;
 
 
     public DownloadProgressView(Context context) {
@@ -81,7 +88,9 @@ public class DownloadProgressView extends View {
         rectF = new RectF(width / 2 - radius - strokeWidth, height - 2 * (radius + 2 * strokeWidth), width / 2 + radius + strokeWidth, height - 2 * strokeWidth);
         Log.d(TAG, rectF.toString());
         centerY = height - radius - 3 * strokeWidth;
-        bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        bitmapWidth = 2 * radius + strokeWidth;
+        bitmapHeight = bitmapWidth;
+        bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888);
 
         bitmapCanvas = new Canvas(bitmap);
         super.onSizeChanged(w, h, oldw, oldh);
@@ -91,52 +100,67 @@ public class DownloadProgressView extends View {
 
         arcPaint = new Paint();
         arcPaint.setAntiAlias(true);
-        arcPaint.setColor(Color.argb(255, 48, 63, 159));
+
+        arcPaint.setColor(Color.argb(255, 0, 150, 136));
         arcPaint.setStrokeWidth(strokeWidth);
         arcPaint.setStyle(Paint.Style.STROKE);
 
         circlePaint = new Paint(arcPaint);
-        circlePaint.setColor(Color.argb(255, 234, 43, 43));
+        circlePaint.setColor(Color.argb(255, 173, 216, 230));
 
         downPaint = new Paint();
-        downPaint.setColor(Color.argb(255, 180, 255, 47));
-        downPaint.setColor(Color.argb(255, 48, 63, 159));
+        downPaint.setColor(Color.argb(255, 173, 216, 230));
 
 
         //波浪
 
         roundPaint = new Paint();
-        roundPaint.setColor(Color.argb(255, 127, 255, 156));
+        roundPaint.setColor(Color.argb(255, 255, 255, 255));
         roundPaint.setAntiAlias(true);
 
         progressPaint = new Paint();
         progressPaint.setAntiAlias(true);
-        progressPaint.setColor(Color.argb(255, 48, 63, 159));
+        progressPaint.setColor(Color.argb(255, 173, 216, 230));
         //取两层绘制交集。显示上层
         progressPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
 
 
         //圆圈旋转动画
         mRotateAnimation = ValueAnimator.ofFloat(0f, 1f);
-        mRotateAnimation.setDuration(5000);
-        mRotateAnimation.setRepeatCount(20);
+        mRotateAnimation.setDuration(1000);
+        mRotateAnimation.setRepeatCount(100);
         mRotateAnimation.setStartDelay(0);
         mRotateAnimation.setInterpolator(new AccelerateDecelerateInterpolator());
         mRotateAnimation.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 circleAngle = (float) animation.getAnimatedValue() * 360f;
-                downLength = (float) animation.getAnimatedValue() * (2f * radius + 2 * dotRadius + strokeWidth);
-                invalidate();
+                downLength = (float) animation.getAnimatedValue() * (2f * radius + 2 * dotRadius);
+                Log.d(TAG, "sfsafasf    " + downLength);
+                Log.d(TAG, "sfsafasf    safdsaf" + animation.getAnimatedValue());
 
+                if (downLength / waveHeight > 0.98) {
+                    if (currentProgress < maxProgress) {
+                        if (isRise) {
+                            currentProgress += 10;
+                            isRise = false;
+                        }
+                    } else {
+                        if ((float) animation.getAnimatedValue() > 0.99)
+                            mRotateAnimation.cancel();
+                    }
+                } else {
+                    isRise = true;
+                }
+                invalidate();
             }
         });
 
 
-        if (singleTapThread == null) {
-            singleTapThread = new SingleTapThread();
-            postDelayed(singleTapThread, 100);
-        }
+//        if (singleTapThread == null) {
+//            singleTapThread = new SingleTapThread();
+//            postDelayed(singleTapThread, 100);
+//        }
 
     }
 
@@ -144,35 +168,43 @@ public class DownloadProgressView extends View {
     protected void onDraw(Canvas canvas) {
         Log.d(TAG, getMeasuredWidth() + "");
         canvas.drawArc(rectF, 0, 360, false, circlePaint);
-        canvas.drawArc(rectF, -100 - circleAngle, 20, false, arcPaint);
+        canvas.drawArc(rectF, -100 - circleAngle, 5, false, arcPaint);
 
-        canvas.drawCircle(width / 2, height - 2 * radius - 3 * strokeWidth + downLength - 2 * dotRadius, dotRadius, downPaint);
+        Log.d(TAG, centerY + "centerY");
+
+        canvas.drawBitmap(bitmap, width / 2 - radius - strokeWidth / 2, centerY - radius - strokeWidth / 2, downPaint);
 
 
-        Log.d(TAG, centerY + "");
+        int smallRadius = bitmapWidth / 2;
 
-        canvas.drawBitmap(bitmap, 0, centerY - radius, downPaint);
-
-        bitmapCanvas.drawCircle(width / 2, radius, radius+strokeWidth/2, roundPaint);
+        bitmapCanvas.drawCircle(bitmapWidth / 2, bitmapHeight / 2, bitmapWidth / 2, roundPaint);
 
         path.reset();
-        int count = (int) (radius + 1) * 2 / space;
-        float y = (1 - (float) currentProgress / maxProgress) * radius * 2 + height / 2 - radius;
-        move += 20;
-        if (move > width) {
-            move = width;
-        }
-        path.moveTo(-width + y, y);
+        int count = (int) (smallRadius + 1) * 2 / space;
+
+        //决定上升的高度
+        waveHeight = (1 - (float) currentProgress / maxProgress) * smallRadius * 2 + bitmapHeight / 2 - smallRadius;
+        path.moveTo(-bitmapWidth + waveHeight, waveHeight);
+
+        Log.d("asdfasfsa", waveHeight + "     " + bitmapHeight);
+
+        //决定 曲线的弯曲程度
         float d = (1 - (float) currentProgress / maxProgress) * space;
         for (int i = 0; i < count; i++) {
             path.rQuadTo(space, -d, space * 2, 0);
             path.rQuadTo(space, d, space * 2, 0);
         }
-        path.lineTo(width, y);
-        path.lineTo(width, height);
-        path.lineTo(0, height);
+
+        Log.d(TAG, " - bitmapWidth + y:" + (-bitmapWidth + waveHeight) + "  y: " + waveHeight + "   d: " + d + "   sssssss");
+        path.lineTo(bitmapWidth, waveHeight);
+        path.lineTo(bitmapWidth, bitmapHeight);
+        path.lineTo(0, bitmapHeight);
         path.close();
         bitmapCanvas.drawPath(path, progressPaint);
+
+        //水滴覆盖在最上面
+        canvas.drawCircle(width / 2, height - 2 * radius - 2 * strokeWidth + downLength - 2 * dotRadius, dotRadius, downPaint);
+
 
     }
 

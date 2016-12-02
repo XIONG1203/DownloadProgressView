@@ -11,7 +11,8 @@
     tools:context="org.createjoy.downloadprogressview.MainActivity">
 
     <org.createjoy.downloadprogressview.DownloadProgressView
+        android:layout_centerInParent="true"
         android:id="@+id/load"
-        android:layout_width="200dp"
-        android:layout_height="200dp" />
+        android:layout_width="300dp"
+        android:layout_height="300dp" />
 </RelativeLayout>
