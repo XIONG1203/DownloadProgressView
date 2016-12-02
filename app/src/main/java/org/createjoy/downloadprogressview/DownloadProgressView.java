@@ -65,6 +65,8 @@ public class DownloadProgressView extends View {
 
     private boolean isRise = false;
 
+    private float percent = 0;
+
 
     public DownloadProgressView(Context context) {
         this(context, null);
@@ -102,6 +104,7 @@ public class DownloadProgressView extends View {
         arcPaint.setAntiAlias(true);
 
         arcPaint.setColor(Color.argb(255, 0, 150, 136));
+
         arcPaint.setStrokeWidth(strokeWidth);
         arcPaint.setStyle(Paint.Style.STROKE);
 
@@ -127,15 +130,16 @@ public class DownloadProgressView extends View {
 
         //圆圈旋转动画
         mRotateAnimation = ValueAnimator.ofFloat(0f, 1f);
-        mRotateAnimation.setDuration(1000);
+        mRotateAnimation.setDuration(10000);
         mRotateAnimation.setRepeatCount(100);
         mRotateAnimation.setStartDelay(0);
         mRotateAnimation.setInterpolator(new AccelerateDecelerateInterpolator());
         mRotateAnimation.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
+                percent = (float) animation.getAnimatedValue();
                 circleAngle = (float) animation.getAnimatedValue() * 360f;
-                downLength = (float) animation.getAnimatedValue() * (2f * radius + 2 * dotRadius);
+                downLength = (float) animation.getAnimatedValue() * (2f * radius);
                 Log.d(TAG, "sfsafasf    " + downLength);
                 Log.d(TAG, "sfsafasf    safdsaf" + animation.getAnimatedValue());
 
@@ -168,7 +172,8 @@ public class DownloadProgressView extends View {
     protected void onDraw(Canvas canvas) {
         Log.d(TAG, getMeasuredWidth() + "");
         canvas.drawArc(rectF, 0, 360, false, circlePaint);
-        canvas.drawArc(rectF, -100 - circleAngle, 5, false, arcPaint);
+//        canvas.drawArc(rectF, - 100 - circleAngle, 5, false, arcPaint);
+        canvas.drawArc(rectF, -90 - 360 * percent, -(20 + percent * 344), false, arcPaint);
 
         Log.d(TAG, centerY + "centerY");
 
