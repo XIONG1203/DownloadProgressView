@@ -4,9 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -14,14 +12,14 @@ import android.graphics.Path;
 import android.graphics.PathMeasure;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
-import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AccelerateInterpolator;
+
+import java.util.Random;
 
 /**
  * Created by xiong on 2016/12/1.
@@ -31,21 +29,20 @@ import android.view.animation.AccelerateInterpolator;
 public class DownloadProgressView extends View {
 
     private String TAG = "DownloadProgressView";
-
-
     private Paint downPaint;
     private Paint arcPaint;
     private Paint circlePaint;
-    private int strokeWidth;
+    private float strokeWidth;
     private RectF rectF;
-    private int radius;
-    private int width;
-    private int height;
+    private float radius;
+    private float width;
+    private float height;
 
     private float dotRadius;
     private float downLength;
 
     private ValueAnimator mRotateAnimation;
+    private float percent = 0;
 
     //绘制波浪
     private Paint progressPaint;
@@ -54,35 +51,45 @@ public class DownloadProgressView extends View {
     private Path path = new Path();
     private Paint roundPaint;
 
-    private int space = 20;
+    private float space;
 
     private int currentProgress = 0;
     private int maxProgress = 100;
 
-    private int centerY;
+    private float centerY;
 
-    private int bitmapWidth;
-    private int bitmapHeight;
-
-
+    private float bitmapWidth;
+    private float bitmapHeight;
     private float waveHeight;
 
     private boolean isRise = false;
 
-    private float percent = 0;
 
-    private ValueAnimator mTickAnimation;
+    //打钩
+
+    private ValueAnimator tickAnimation;
     private float tickPercent;
-    private PathMeasure tickPathMeasure;
+    private PathMeasure tickMeasure;
+    private Path tickPath;
+
+    //打X
+    private ValueAnimator forkAnimation;
+    private float forkPercent;
+    private PathMeasure forkMeasure;
+    private PathMeasure forkMeasure2;
+    private Path forkPath;
+    private Path forkPath2;
+    private int forkStatus = 0;
+    private Paint forkPaint;
+
 
     private int status = 0;
 
     private Paint solidCirclePaint;
 
-    private Bitmap bitmapDrop;
-
-    private RectF rectDrop;
-
+    private int colorArc;
+    private int colorsoild;
+    private int colorFork;
 
     public DownloadProgressView(Context context) {
         this(context, null);
@@ -106,9 +113,9 @@ public class DownloadProgressView extends View {
 
         dotRadius = strokeWidth / 2;
 
-        radius = Math.min(width, height) / 2 - strokeWidth / 2;
+        space = width / 12;
 
-        Log.d("weroeoo", radius + "");
+        radius = Math.min(width, height) / 2 - strokeWidth / 2;
 
         rectF = new RectF(strokeWidth / 2, strokeWidth / 2, width - strokeWidth / 2, width - strokeWidth / 2);
 
@@ -116,49 +123,69 @@ public class DownloadProgressView extends View {
         centerY = height - radius - 3 * strokeWidth;
         bitmapWidth = 2 * (radius - strokeWidth / 2);
         bitmapHeight = bitmapWidth;
-        bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888);
+        bitmap = Bitmap.createBitmap((int) bitmapWidth, (int) bitmapHeight, Bitmap.Config.ARGB_8888);
         bitmapCanvas = new Canvas(bitmap);
-        Path tickPath = new Path();
 
-        tickPath.moveTo((float) (width / 2 - 0.5 * radius), height / 2);
-        tickPath.lineTo((float) (width / 2 - 0.5 * radius) + 0.4f * radius, height / 2 + 0.3f * radius);
-        tickPath.lineTo((float) (width / 2 - 0.5 * radius) + radius, height / 2 - 0.3f * radius);
+        //打钩
+        tickPath = new Path();
+        tickPath.moveTo(width / 2 - 0.5f * radius, height / 2);
+        tickPath.lineTo(width / 2 - 0.5f * radius + 0.4f * radius, height / 2 + 0.3f * radius);
+        tickPath.lineTo(width / 2 - 0.5f * radius + radius, height / 2 - 0.3f * radius);
+        tickMeasure = new PathMeasure(tickPath, false);
 
-        tickPathMeasure = new PathMeasure(tickPath, false);
+        //打叉
+
+        forkPath = new Path();
+        forkPath.moveTo(width / 2 - 0.5f * radius, height / 2 - 0.5f * radius);
+        forkPath.lineTo(width / 2 + 0.5f * radius, height / 2 + 0.5f * radius);
+        forkMeasure = new PathMeasure(forkPath, false);
+        forkPath2 = new Path();
+        forkPath2.moveTo(width / 2 + 0.5f * radius, height / 2 - 0.5f * radius);
+        forkPath2.lineTo(width / 2 - 0.5f * radius, height / 2 + 0.5f * radius);
+        forkMeasure2 = new PathMeasure(forkPath2, false);
+
+
         super.onSizeChanged(w, h, oldw, oldh);
     }
 
     private void init() {
 
-        Resources r = this.getContext().getResources();
-        bitmapDrop = BitmapFactory.decodeResource(r, R.drawable.drop);
-        rectDrop = new RectF(0, 0, 38, 68);
+        colorArc = Color.argb(255, 0, 150, 136);
+        colorsoild = Color.argb(255, 173, 216, 230);
+        colorFork = Color.argb(255, 238, 0, 0);
 
         arcPaint = new Paint();
         arcPaint.setAntiAlias(true);
-
-        arcPaint.setColor(Color.argb(255, 0, 150, 136));
-
+        arcPaint.setColor(colorArc);
         arcPaint.setStrokeWidth(strokeWidth);
-        Log.d("dsfwerrr", strokeWidth + "    " + radius);
         arcPaint.setStyle(Paint.Style.STROKE);
 
         circlePaint = new Paint(arcPaint);
-        circlePaint.setColor(Color.argb(255, 173, 216, 230));
+        circlePaint.setColor(colorsoild);
 
         downPaint = new Paint();
-        downPaint.setColor(Color.argb(255, 173, 216, 230));
-
+        downPaint.setAntiAlias(true);
+        downPaint.setColor(colorsoild);
 
         //波浪
-
         roundPaint = new Paint();
+        roundPaint.setAntiAlias(true);
         roundPaint.setColor(Color.argb(255, 255, 255, 255));
         roundPaint.setAntiAlias(true);
 
         progressPaint = new Paint();
         progressPaint.setAntiAlias(true);
-        progressPaint.setColor(Color.argb(255, 173, 216, 230));
+        progressPaint.setColor(colorsoild);
+
+        solidCirclePaint = new Paint();
+        solidCirclePaint.setColor(colorsoild);
+
+        forkPaint = new Paint();
+        forkPaint.setStyle(Paint.Style.STROKE);
+        forkPaint.setStrokeWidth(strokeWidth);
+        forkPaint.setColor(colorFork);
+        forkPaint.setAntiAlias(true);
+
 
         //交集上层
         progressPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
@@ -166,7 +193,7 @@ public class DownloadProgressView extends View {
 
         //圆圈旋转动画
         mRotateAnimation = ValueAnimator.ofFloat(0f, 1f);
-        mRotateAnimation.setDuration(1000);
+        mRotateAnimation.setDuration(2000);
         mRotateAnimation.setRepeatCount(100);
         mRotateAnimation.setStartDelay(0);
         mRotateAnimation.setInterpolator(new AccelerateDecelerateInterpolator());
@@ -175,9 +202,8 @@ public class DownloadProgressView extends View {
             public void onAnimationUpdate(ValueAnimator animation) {
                 percent = (float) animation.getAnimatedValue();
                 downLength = (float) animation.getAnimatedValue() * (2f * radius + 2 * dotRadius);
-                Log.d(TAG, "sfsafasf    " + downLength);
 
-                if (downLength / waveHeight > 0.98) {
+                if (downLength / waveHeight > 1.01) {
                     if (currentProgress < maxProgress) {
                         if (isRise) {
                             currentProgress += 10;
@@ -198,16 +224,18 @@ public class DownloadProgressView extends View {
             @Override
             public void onAnimationCancel(Animator animation) {
                 status = 1;
-                mTickAnimation.start();
+                tickAnimation.start();
+//                forkStatus = 0;
+//                forkAnimation.start();
             }
         });
 
         //打钩动画
-        mTickAnimation = ValueAnimator.ofFloat(0f, 1f);
-        mTickAnimation.setStartDelay(500);
-        mTickAnimation.setDuration(500);
-        mTickAnimation.setInterpolator(new AccelerateInterpolator());
-        mTickAnimation.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+        tickAnimation = ValueAnimator.ofFloat(0f, 1f);
+        tickAnimation.setStartDelay(200);
+        tickAnimation.setDuration(500);
+        tickAnimation.setInterpolator(new AccelerateInterpolator());
+        tickAnimation.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 tickPercent = (float) animation.getAnimatedValue();
@@ -215,9 +243,28 @@ public class DownloadProgressView extends View {
             }
         });
 
+        forkAnimation = ValueAnimator.ofFloat(0f, 1f);
+        forkAnimation.setStartDelay(200);
+        forkAnimation.setDuration(500);
+        forkAnimation.setInterpolator(new AccelerateInterpolator());
+        forkAnimation.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                forkPercent = (float) animation.getAnimatedValue();
+                invalidate();
+            }
+        });
+        forkAnimation.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (forkStatus == 0) {
+                    forkPercent = 0;
+                    forkAnimation.start();
+                    forkStatus = 1;
+                }
+            }
+        });
 
-        solidCirclePaint = new Paint();
-        solidCirclePaint.setColor(Color.argb(255, 173, 216, 230));
 
     }
 
@@ -233,23 +280,17 @@ public class DownloadProgressView extends View {
             canvas.drawArc(rectF, 0, 360, false, circlePaint);
             canvas.drawArc(rectF, -90 - 360 * percent, -(20 + percent * 344), false, arcPaint);
 
-            Log.d(TAG, centerY + "centerY");
-
             canvas.drawBitmap(bitmap, width / 2 - radius + strokeWidth / 2, width / 2 - radius + strokeWidth / 2, downPaint);
 
-            int smallRadius = bitmapWidth / 2;
-
             bitmapCanvas.drawCircle(bitmapWidth / 2, bitmapHeight / 2, bitmapWidth / 2, roundPaint);
-
             path.reset();
-            int count = (int) (smallRadius + 1) * 2 / space;
+
+            //波的数量
+            int count = (int) ((int) (bitmapWidth / 2 + 1) * 2 / space);
 
             //决定上升的高度
-            waveHeight = (1 - (float) currentProgress / maxProgress) * smallRadius * 2 + bitmapHeight / 2 - smallRadius;
+            waveHeight = (1 - (float) currentProgress / maxProgress) * bitmapHeight;
             path.moveTo(-bitmapWidth + waveHeight, waveHeight);
-
-            Log.d("asdfasfsa", waveHeight + "     " + bitmapHeight);
-
             //决定 曲线的弯曲程度
             float d = (1 - (float) currentProgress / maxProgress) * space;
             for (int i = 0; i < count; i++) {
@@ -257,7 +298,7 @@ public class DownloadProgressView extends View {
                 path.rQuadTo(space, d, space * 2, 0);
             }
 
-            Log.d(TAG, " - bitmapWidth + y:" + (-bitmapWidth + waveHeight) + "  y: " + waveHeight + "   d: " + d + "   sssssss");
+//            Log.d(TAG, " - bitmapWidth + y:" + (-bitmapWidth + waveHeight) + "  y: " + waveHeight + "   d: " + d + "   sssssss");
             path.lineTo(bitmapWidth, waveHeight);
             path.lineTo(bitmapWidth, bitmapHeight);
             path.lineTo(0, bitmapHeight);
@@ -268,12 +309,30 @@ public class DownloadProgressView extends View {
 
             canvas.drawCircle(width / 2, height - 2 * radius - 2 * strokeWidth + downLength - 2 * dotRadius, dotRadius, downPaint);
 
-            //    canvas.drawBitmap(bitmapDrop,null,rectDrop,circlePaint);
-
         } else if (status == 1) {
             canvas.drawArc(rectF, 0, 360, false, solidCirclePaint);
             canvas.drawArc(rectF, 0, 360, false, arcPaint);
-            drawTick(canvas);
+            Path path = new Path();
+            tickMeasure.getSegment(0, tickPercent * tickMeasure.getLength(), path, true);
+            path.rLineTo(0, 0);
+            canvas.drawPath(path, arcPaint);
+
+        } else if (status == 2) {
+            canvas.drawArc(rectF, 0, 360, false, solidCirclePaint);
+            canvas.drawArc(rectF, 0, 360, false, arcPaint);
+
+
+            Path path = new Path();
+            forkPaint.setStrokeWidth(strokeWidth);
+            if (forkStatus == 0) {
+                forkMeasure.getSegment(0, forkPercent * forkMeasure.getLength(), path, true);
+            } else {
+                Log.d("dsafer", "fasfd");
+                canvas.drawPath(forkPath, forkPaint);
+                forkMeasure2.getSegment(0, forkPercent * forkMeasure2.getLength(), path, true);
+            }
+            path.rLineTo(0, 0);
+            canvas.drawPath(path, forkPaint);
         }
 
     }
@@ -287,20 +346,6 @@ public class DownloadProgressView extends View {
         });
     }
 
-    /**
-     * 绘制打钩
-     *
-     * @param canvas
-     */
-    private void drawTick(Canvas canvas) {
-        Path path = new Path();
-
-        tickPathMeasure.getSegment(0, tickPercent * tickPathMeasure.getLength(), path, true);
-        Log.d("sdfasf", tickPathMeasure.getLength() + "");
-        path.rLineTo(0, 0);
-        canvas.drawPath(path, arcPaint);
-        //canvas.drawArc(mRectF, 0, 360, false, tickPaint);
-    }
 
     public void startLoad() {
         start();
